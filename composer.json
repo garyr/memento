@@ -1,6 +1,9 @@
 {
     "name": "garyr/memento",
     "description": "Lightweight cache library",
+    "keywords":["cache","file","memcache","redis"],
+    "type":"library",
+    "license":"MIT",
     "authors": [
         {
             "name": "Gary Rogers",
