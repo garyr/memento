@@ -11,4 +11,5 @@ services:
   - redis-server
 
 before_script:
+  - phpenv config-add .travis.ini
   - composer install
