@@ -1,0 +1,26 @@
+#!/usr/bin/env php
+<?php
+
+foreach (array(__DIR__ . '/../../autoload.php', __DIR__ . '/../vendor/autoload.php') as $file) {
+    if (file_exists($file)) {
+        define('MEMENTO_COMPOSER_INSTALL', $file);
+        break;
+    }
+}
+
+if (!defined('MEMENTO_COMPOSER_INSTALL')) {
+    die(
+        'You need to set up the project dependencies using the following commands:' . PHP_EOL .
+        'wget http://getcomposer.org/composer.phar' . PHP_EOL .
+        'php composer.phar install' . PHP_EOL
+    );
+}
+
+require MEMENTO_COMPOSER_INSTALL;
+
+use Symfony\Component\Console\Application;
+
+$application = new Application();
+$application->add(new Memento\Command\Cache\Cleaner());
+$application->add(new Memento\Command\Cache\Clear());
+$application->run();
