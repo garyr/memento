@@ -1,3 +1,5 @@
+[![Build Status](https://secure.travis-ci.org/garyr/memento.png)](http://travis-ci.org/garyr/memento)
+
 Memento
 =======
 
