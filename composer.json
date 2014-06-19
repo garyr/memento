@@ -23,10 +23,9 @@
     },
     "require": {
         "php": ">=5.3.3",
-        "symfony/console": "v2.4.0"
+        "symfony/console": "v2.5.0"
     },
     "require-dev": {
-        "ext-memcached": "*",
         "phpunit/phpunit": "4.1.3",
         "predis/predis": "v0.8.5"
     },
