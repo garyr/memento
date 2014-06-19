@@ -16,10 +16,10 @@
         }
     },
     "bin": [
-        "memento"
+        "bin/memento"
     ],
     "config": {
-        "bin-dir": "bin/"
+        "bin-dir": "bin"
     },
     "require": {
         "php": ">=5.3.3",

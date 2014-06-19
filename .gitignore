@@ -1,4 +1,5 @@
 .idea
+bin/phpunit
 composer.lock
 cache/*
 vendor/
