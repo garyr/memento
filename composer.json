@@ -28,11 +28,5 @@
     "require-dev": {
         "phpunit/phpunit": "4.1.3",
         "predis/predis": "v0.8.5"
-    },
-    "scripts": {
-        "post-install-cmd": [
-            "test -d 'cache' || mkdir cache",
-            "chmod 777 cache"
-        ]
     }
 }
