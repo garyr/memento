@@ -2,4 +2,5 @@
 bin/phpunit
 composer.lock
 cache/*
+!cache/empty
 vendor/
