@@ -3,6 +3,7 @@
 namespace Memento\Command\Cache;
 
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -11,14 +12,25 @@ class Cleaner extends Command
     protected function configure()
     {
         $this->setName('cache:cleaner')
-        ->setDescription('Used to clean file engine expired cache keys (can use as a cron)');
+        ->setDescription('Used to clean file engine expired cache keys (can use as a cron)')
+        ->addArgument(
+            'path',
+            InputArgument::OPTIONAL,
+            'Me mento cache dir?'
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $output->writeln("Cleaning expired keys from memento cache dir");
 
-        $path = realpath(dirname(__FILE__) . '/../../../../cache/');
+        $path = $input->getArgument('path');
+        if (empty($path)) {
+            $path = realpath(dirname(__FILE__) . '/../../../../cache');
+        } else {
+            $path = realpath($input->getArgument('path'));
+        }
+
+        $output->writeln(sprintf("Cleaning expired keys from memento cache dir '%s'", $path));
 
         $directory = new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS);
         $iterator = new \RecursiveIteratorIterator($directory);
