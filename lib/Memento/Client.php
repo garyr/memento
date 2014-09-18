@@ -136,7 +136,7 @@ class Client
         $this->engine->setGroupKey($groupKey);
 
         if (!$this->engine->isValid($key)) {
-            return false;
+            return null;
         }
 
         return $this->engine->retrieve($key);
