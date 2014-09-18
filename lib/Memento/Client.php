@@ -45,7 +45,7 @@ class Client
                         throw new \InvalidArgumentException("must be instance of Memento_Key");
                     }
                 }
-            } else if ($argv[0] instanceof Key) {
+            } elseif ($argv[0] instanceof Key) {
                 $key = $argv[0];
             } else {
                 throw new \InvalidArgumentException("argument 1 must be instance of Memento_Group_Key or Memento_Key");
@@ -119,6 +119,7 @@ class Client
             }
             $_keys[] = $key;
         }
+
         return $_keys;
     }
 

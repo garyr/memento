@@ -39,7 +39,7 @@ class Cleaner extends Command
         $cacheCleanCount = 0;
 
         // iterate through all the 'expires' files
-        foreach($files as $file => $SplFileInfo) {
+        foreach ($files as $file => $SplFileInfo) {
             // read expires values
             $expires = intval(trim(file_get_contents($file)));
             $cacheDir = dirname($file);

@@ -35,7 +35,7 @@ class SingleTest extends Harness
     public function testInvalidRetrieve(Memento\Client $client)
     {
         $data = $client->retrieve(new Memento\Key(md5(time() . rand(0, 1000))));
-        $this->assertEquals($data, NULL);
+        $this->assertEquals($data, null);
     }
 
     /** @dataProvider provideClients */

@@ -44,7 +44,7 @@ class GroupTest extends Harness
     public function testInvalidRetrieve(Memento\Client $client)
     {
         $data = $client->retrieve(new Memento\Group\Key(md5(time() . rand(0, 1000))), $this->getKey());
-        $this->assertEquals($data, NULL);
+        $this->assertEquals($data, null);
     }
 
     /** @dataProvider provideClients */
