@@ -24,12 +24,12 @@ class File extends EngineAbstract implements EngineInterface
     /**
      * group key
      */
-    private $groupKey = NULL;
+    private $groupKey = null;
 
     /**
      * Constructor
      */
-    public function __construct($config = NULL)
+    public function __construct($config = null)
     {
         if (!is_array($config)) {
             $config = array(
@@ -51,7 +51,7 @@ class File extends EngineAbstract implements EngineInterface
         }
     }
 
-    public function setGroupKey(Memento\Group\Key $groupKey = NULL)
+    public function setGroupKey(Memento\Group\Key $groupKey = null)
     {
         $this->groupKey = $groupKey;
     }
@@ -109,12 +109,13 @@ class File extends EngineAbstract implements EngineInterface
         }
 
         foreach (glob($dir . DIRECTORY_SEPARATOR . '*') as $file) {
-            if(is_dir($file)) {
+            if (is_dir($file)) {
                 $this->rrmdir($file);
             } else {
                 unlink($file);
             }
         }
+
         return rmdir($dir);
     }
 
@@ -136,6 +137,7 @@ class File extends EngineAbstract implements EngineInterface
     public function invalidate(Memento\Key $key = null)
     {
         $keyPath = $this->getKeyPath($key);
+
         return $this->rrmdir($keyPath);
     }
 
@@ -164,6 +166,7 @@ class File extends EngineAbstract implements EngineInterface
             $keys[] = $entry;
         }
         asort($keys);
+
         return $keys;
     }
 

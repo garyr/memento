@@ -22,12 +22,12 @@ class Redis extends EngineAbstract implements EngineInterface
     /**
      * group key
      */
-    private $groupKey = NULL;
+    private $groupKey = null;
 
     /**
      * Constructor
      */
-    public function __construct($config = NULL)
+    public function __construct($config = null)
     {
         if (!is_array($config)) {
             $config = array(
@@ -45,7 +45,7 @@ class Redis extends EngineAbstract implements EngineInterface
         $this->config = $config;
     }
 
-    public function setGroupKey(Memento\Group\Key $groupKey = NULL)
+    public function setGroupKey(Memento\Group\Key $groupKey = null)
     {
         $this->groupKey = $groupKey;
     }
@@ -53,7 +53,7 @@ class Redis extends EngineAbstract implements EngineInterface
     /**
      * Connects to a sharded server host
      */
-    private function __connect(Memento\Key $key = NULL)
+    private function __connect(Memento\Key $key = null)
     {
         $connectKey = $this->groupKey ? $this->groupKey : $key;
         $config = $this->getServer($connectKey, $this->config);
@@ -86,15 +86,17 @@ class Redis extends EngineAbstract implements EngineInterface
     /**
      * Logical implementation of the invalidate() command
      */
-    public function invalidate(Memento\Key $key = NULL)
+    public function invalidate(Memento\Key $key = null)
     {
         $this->__connect($key);
         if ($this->groupKey && !is_null($key)) {
             $result = $this->redis->hdel($this->groupKey->getKey(), $key->getKey());
+
             return ($result !== false) ? true : false;
         } else {
             $invalidateKey = $this->groupKey ? $this->groupKey : $key;
             $this->redis->hset($invalidateKey->getKey(), Memento\Hash::FIELD_VALID, serialize(false));
+
             return (false === unserialize($this->redis->hget($invalidateKey->getKey(), Memento\Hash::FIELD_VALID)));
         }
     }
@@ -105,6 +107,7 @@ class Redis extends EngineAbstract implements EngineInterface
     public function keys()
     {
         $this->__connect();
+
         return $this->redis->hkeys($this->groupKey->getKey());
     }
 
@@ -135,7 +138,7 @@ class Redis extends EngineAbstract implements EngineInterface
     {
         $this->__connect($key);
 
-        $hash = NULL;
+        $hash = null;
 
         // handle arguments based on group or single key
         if ($this->groupKey) {
@@ -170,7 +173,7 @@ class Redis extends EngineAbstract implements EngineInterface
     /**
      * Logical implementation of the isValid() command
      */
-    public function isValid(Memento\Key $key = NULL)
+    public function isValid(Memento\Key $key = null)
     {
         $checkKey = $this->groupKey ? $this->groupKey : $key;
 
@@ -201,6 +204,7 @@ class Redis extends EngineAbstract implements EngineInterface
         $this->__connect($key);
 
         $expiresKey = $this->groupKey ? $this->groupKey : $key;
+
         return $this->redis->expire($expiresKey->getKey(), $expires);
     }
 }

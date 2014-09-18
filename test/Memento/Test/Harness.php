@@ -19,6 +19,7 @@ abstract class Harness extends \PHPUnit_Framework_TestCase
         if (!$this->groupKey) {
             $this->groupKey = new Memento\Group\Key('GROUP_KEY-'.Memento\Key\GUID::generate());
         }
+
         return $this->groupKey;
     }
 
@@ -27,6 +28,7 @@ abstract class Harness extends \PHPUnit_Framework_TestCase
         if (!$this->key) {
             $this->key = new Memento\Key(Memento\Key\GUID::generate());
         }
+
         return $this->key;
     }
 
@@ -56,6 +58,7 @@ abstract class Harness extends \PHPUnit_Framework_TestCase
         } catch (Exception $e) {
             return false;
         }
+
         return true;
     }
 
@@ -67,6 +70,7 @@ abstract class Harness extends \PHPUnit_Framework_TestCase
                 'port' => 6379
             )
         );
+
         return new Memento\Client($redis);
     }
 
@@ -82,6 +86,7 @@ abstract class Harness extends \PHPUnit_Framework_TestCase
         }
 
         $memcache = new Memento\Engine\Memcache($config);
+
         return new Memento\Client($memcache);
     }
 
@@ -95,6 +100,7 @@ abstract class Harness extends \PHPUnit_Framework_TestCase
         $file = new Memento\Engine\File();
         $cmd = dirname(__FILE__) . "/../../../bin/memento cache:clear";
         `$cmd`;
+
         return new Memento\Client($file);
     }
 }

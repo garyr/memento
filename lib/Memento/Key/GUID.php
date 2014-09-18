@@ -13,9 +13,9 @@ class GUID
      * Generates a GUID
      * @return string guid
      */
-    static function generate()
+    public static function generate()
     {
-        mt_srand((double)microtime() * 10000);
+        mt_srand((double) microtime() * 10000);
         $charid = strtoupper(md5(uniqid(rand(), true)));
         $hyphen = chr(45);// "-"
         $uuid = substr($charid, 0, 8) . $hyphen
@@ -23,6 +23,7 @@ class GUID
             .substr($charid,12, 4) . $hyphen
             .substr($charid,16, 4) . $hyphen
             .substr($charid,20,12);
+
         return $uuid;
     }
 
@@ -32,13 +33,13 @@ class GUID
      * @param  string  $guid guid
      * @return boolean       returns true if the string matches
      */
-    static function isValid($guid)
+    public static function isValid($guid)
     {
         $regex = '/^([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}(?:\:{1}.*)$/';
-        if(preg_match($regex, $guid))
-        {
+        if (preg_match($regex, $guid)) {
             return true;
         }
+
         return false;
     }
 }
