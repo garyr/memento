@@ -1,4 +1,4 @@
-[![Build Status](https://secure.travis-ci.org/garyr/memento.png)](http://travis-ci.org/garyr/memento)
+[![Build Status](https://secure.travis-ci.org/perimeter/memento.png)](http://travis-ci.org/perimeter/memento)
 
 Memento
 =======
