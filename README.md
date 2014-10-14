@@ -1,4 +1,4 @@
-[![Build Status](https://secure.travis-ci.org/perimeter/memento.png)](http://travis-ci.org/perimeter/memento)
+[![Build Status](https://secure.travis-ci.org/garyr/memento.png)](http://travis-ci.org/garyr/memento)
 
 Memento
 =======
@@ -11,7 +11,7 @@ group bases methods always expire at the same time and should only be used when 
 ```php
 $file = new Memento\Engine\File(
     array(
-        'path' => '/tmp/memento',   // defaults to 'memento/cache'
+        'path' => '/tmp/memento',   // defaults to sys_get_temp_dir() . '/memento'
     )
 );
 

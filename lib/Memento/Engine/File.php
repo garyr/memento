@@ -33,7 +33,7 @@ class File extends EngineAbstract implements EngineInterface
     {
         if (!is_array($config)) {
             $config = array(
-                'path'     => realpath(dirname(__FILE__) . '/../../../cache'),
+                'path'     => sys_get_temp_dir() . '/memento',
             );
         }
 
