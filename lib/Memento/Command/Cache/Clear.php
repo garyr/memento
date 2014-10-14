@@ -24,7 +24,7 @@ class Clear extends Command
     {
         $path = $input->getArgument('path');
         if (empty($path)) {
-            $path = realpath(dirname(__FILE__) . '/../../../../cache');
+            $path = sys_get_temp_dir() . '/memento';
         } else {
             $path = realpath($input->getArgument('path'));
         }
