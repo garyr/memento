@@ -16,7 +16,7 @@ abstract class EngineAbstract
     */
     public function getServer(Memento\Key $key, $servers)
     {
-        if(!is_array($servers) || count($servers) < 1) {
+        if (!is_array($servers) || count($servers) < 1) {
             throw new \Exception('Error: Invalid configuration');
         }
 
