@@ -11,6 +11,14 @@ class GroupTest extends Harness
     {
         $success = $client->store($this->getGroupKey(), $this->getKey(), array('foo' => 'bar'), $this->getExpires());
         $this->assertTrue($success);
+        $this->assertEquals($this->getExpires(), $client->getExpires($this->getGroupKey(), $this->getKey()));
+        $this->assertEquals($this->getExpires(), $client->getTtl($this->getGroupKey(), $this->getKey())); // default should be the same as expires
+
+        $success = $client->store($this->getGroupKey(), $this->getKey(), array('foo' => 'bar'), $this->getExpires(), $this->getTtl());
+        $this->assertTrue($success);
+        sleep(2);
+        $this->assertLessThanOrEqual($this->getExpires(), $client->getExpires($this->getGroupKey(), $this->getKey()));
+        $this->assertLessThanOrEqual($this->getTtl(), $client->getTtl($this->getGroupKey(), $this->getKey()));
     }
 
     /** @dataProvider provideClients */
@@ -83,11 +91,43 @@ class GroupTest extends Harness
     }
 
     /** @dataProvider provideClients */
+    public function testTerminateGroupKeyWithKey(Memento\Client $client)
+    {
+        $key1 = new Memento\Key('key1');
+        $key2 = new Memento\Key('key2');
+        $client->store($this->getGroupKey(), $key1, 'something-to-store');
+        $client->store($this->getGroupKey(), $key2, 'something-to-store');
+
+        $invalid = $client->terminate($this->getGroupKey(), $key1);
+        $this->assertTrue($invalid);
+
+        $exists1 = $client->exists($this->getGroupKey(), $key1);
+        $exists2 = $client->exists($this->getGroupKey(), $key2);
+
+        $this->assertFalse($exists1);
+        $this->assertTrue($exists2);
+    }
+
+    /** @dataProvider provideClients */
     public function testExpires(Memento\Client $client)
     {
-        $client->store($this->getGroupKey(), $this->getKey(), array('foo' => 'bar'), 1);
+        $client->store($this->getGroupKey(), $this->getKey(), array('foo' => 'bar'), 1, 5);
         sleep(3);
         $exists = $client->exists($this->getGroupKey(), $this->getKey());
         $this->assertFalse($exists);
+
+        // check if cache exists but include expired caches
+        $exists = $client->exists($this->getGroupKey(), $this->getKey(), true);
+        $this->assertTrue($exists);
+
+        $client->store($this->getGroupKey(), $this->getKey(), array('foo' => 'bar'), $this->getExpires(), $this->getTtl());
+        $this->assertTrue($client->exists($this->getGroupKey(), $this->getKey()));
+        $client->expire($this->getGroupKey(), $this->getKey());
+        sleep(1);
+        $this->assertFalse($client->exists($this->getGroupKey(), $this->getKey()));
+
+        // check if cache exists but include expired caches
+        $exists = $client->exists($this->getGroupKey(), $this->getKey(), true);
+        $this->assertTrue($exists);
     }
 }

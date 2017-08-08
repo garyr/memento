@@ -72,15 +72,39 @@ class Redis extends EngineAbstract implements EngineInterface
     /**
      * Logical implementation of the exists() command
      */
-    public function exists(Memento\Key $key)
+    public function exists(Memento\Key $key, $expired = false)
+    {
+        return $this->isValid($key, $expired);
+    }
+
+    /**
+     * Logical implementation of the expire() command
+     */
+    public function expire(Memento\Key $key = null)
     {
         $this->__connect($key);
+        $expiresKey = $this->groupKey ? $this->groupKey : $key;
+        $this->redis->hset($expiresKey->getKey(), Memento\Hash::FIELD_EXPIRES, 0);
 
-        if ($this->groupKey) {
-            return $this->redis->hexists($this->groupKey->getKey(), $key->getKey());
-        } else {
-            return $this->isValid($key);
-        }
+        return (0 === intval($this->redis->hget($expiresKey->getKey(), Memento\Hash::FIELD_EXPIRES)));
+    }
+
+    public function getExpires(Memento\Key $key = null)
+    {
+        $this->__connect($key);
+        $expiresKey = $this->groupKey ? $this->groupKey : $key;
+        $expires = intval($this->redis->hget($expiresKey->getKey(), Memento\Hash::FIELD_EXPIRES));
+
+        return $expires - time();
+    }
+
+    public function getTtl(Memento\Key $key = null)
+    {
+        $this->__connect($key);
+        $expiresKey = $this->groupKey ? $this->groupKey : $key;
+        $ttl = intval($this->redis->hget($expiresKey->getKey(), Memento\Hash::FIELD_TTL));
+
+        return $ttl - time();
     }
 
     /**
@@ -89,16 +113,20 @@ class Redis extends EngineAbstract implements EngineInterface
     public function invalidate(Memento\Key $key = null)
     {
         $this->__connect($key);
-        if ($this->groupKey && !is_null($key)) {
-            $result = $this->redis->hdel($this->groupKey->getKey(), $key->getKey());
 
-            return ($result !== false) ? true : false;
+        if ($this->groupKey instanceof Memento\Group\Key && $key instanceof Memento\Key) {
+            $this->redis->hdel($this->groupKey->getKey(), $key->getKey());
+            $invalidated = true;
+        }else if ($this->groupKey instanceof Memento\Group\Key) {
+            $this->redis->hset($this->groupKey->getKey(), Memento\Hash::FIELD_VALID, serialize(false));
+            $invalidated = true;
+        } else if ($key instanceof Memento\Key) {
+            $invalidated = $this->redis->expire($key->getKey(), 0);
         } else {
-            $invalidateKey = $this->groupKey ? $this->groupKey : $key;
-            $this->redis->hset($invalidateKey->getKey(), Memento\Hash::FIELD_VALID, serialize(false));
-
-            return (false === unserialize($this->redis->hget($invalidateKey->getKey(), Memento\Hash::FIELD_VALID)));
+            $invalidated = false;
         }
+
+        return $invalidated;
     }
 
     /**
@@ -114,7 +142,7 @@ class Redis extends EngineAbstract implements EngineInterface
     /**
      * Logical implementation of the retrieve() command
      */
-    public function retrieve(Memento\Key $key)
+    public function retrieve(Memento\Key $key, $expired = false)
     {
         if ($this->groupKey) {
             $data = $this->redis->hget($this->groupKey->getKey(), $key->getKey());
@@ -134,11 +162,25 @@ class Redis extends EngineAbstract implements EngineInterface
     /**
      * Logical implementation of the store() command
      */
-    public function store(Memento\Key $key, $value, $expires)
+    public function store(Memento\Key $key, $value, $expires = null, $ttl = null)
     {
         $this->__connect($key);
 
         $hash = null;
+
+        // if no expires specified use default of 5 minutes
+        if (!is_numeric($expires)) {
+            $expires = self::DEFAULT_EXPIRES;
+        }
+
+        // ttl is when the cache is actually okay for deletion
+        if (!is_numeric($ttl)) {
+            $ttl = $expires;
+        }
+
+        // convert to absolute time
+        $expires = $expires + time();
+        $ttl = $ttl + time();
 
         // handle arguments based on group or single key
         if ($this->groupKey) {
@@ -147,7 +189,11 @@ class Redis extends EngineAbstract implements EngineInterface
                 Memento\Hash::FIELD_VALID,
                 serialize(true),
                 $key->getKey(),
-                serialize($value)
+                serialize($value),
+                Memento\Hash::FIELD_EXPIRES,
+                $expires,
+                Memento\Hash::FIELD_TTL,
+                $ttl,
             );
         } else {
             $hash = array(
@@ -155,6 +201,8 @@ class Redis extends EngineAbstract implements EngineInterface
                 array(
                     Memento\Hash::FIELD_DATA  => serialize($value),
                     Memento\Hash::FIELD_VALID => serialize(true),
+                    Memento\Hash::FIELD_EXPIRES  => $expires,
+                    Memento\Hash::FIELD_TTL => $ttl,
                 )
             );
         }
@@ -164,39 +212,54 @@ class Redis extends EngineAbstract implements EngineInterface
         }
 
         if ($success = call_user_func_array(array($this->redis, 'hmset'), $hash)) {
-            $this->expires($key, $expires);
+            $this->setExpires($key, $ttl); // actual redis expires uses ttl value
         }
 
         return $success;
     }
 
     /**
+     * Duplicate of the invalidate command
+     */
+    public function terminate(Memento\Key $key = null)
+    {
+        return $this->invalidate($key);
+    }
+
+    /**
      * Logical implementation of the isValid() command
      */
-    public function isValid(Memento\Key $key = null)
+    public function isValid(Memento\Key $key = null, $expired = false)
     {
+        $this->__connect($key);
         $checkKey = $this->groupKey ? $this->groupKey : $key;
 
-        $this->__connect($key);
-        // get the valid period for the hash
-        $isValid = $this->redis->hget($checkKey->getKey(), Memento\Hash::FIELD_VALID);
-
-        if (is_null($isValid)) {
-            return false;
+        if ($this->groupKey && $key instanceof Memento\Key) {
+            if ($this->redis->hexists($checkKey->getKey(), $key->getKey())) {
+                $valid = filter_var(unserialize($this->redis->hget($checkKey->getKey(), Memento\Hash::FIELD_VALID)), FILTER_VALIDATE_BOOLEAN);
+            } else {
+                $valid = false;
+            }
+        } else {
+            $valid = filter_var(unserialize($this->redis->hget($checkKey->getKey(), Memento\Hash::FIELD_VALID)), FILTER_VALIDATE_BOOLEAN);
         }
 
-        // check if hash is valid
-        if (true === unserialize($isValid)) {
-            return true;
+        if ($expired === true && $valid) {
+            $isValid = true;
+        } else if ($valid) {
+            $expires = intval($this->redis->hget($checkKey->getKey(), Memento\Hash::FIELD_EXPIRES));
+            $isValid = $expires > time();
+        } else {
+            $isValid = false;
         }
 
-        return false;
+        return $isValid;
     }
 
     /**
      * Logical implementation of the expires() command
      */
-    private function expires(Memento\Key $key, $expires)
+    private function setExpires(Memento\Key $key, $expires)
     {
         if (is_null($expires) || !is_integer($expires)) {
             return;
