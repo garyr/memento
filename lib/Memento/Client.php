@@ -206,14 +206,26 @@ class Client
      */
     public function retrieve()
     {
-        list($key, $groupKey) = $this->getKeys(func_get_args());
+        $args = func_get_args();
+        list($key, $groupKey) = $this->getKeys($args);
         $this->engine->setGroupKey($groupKey);
 
-        if (!$this->engine->isValid($key)) {
+        $expired = false;
+        if ($groupKey instanceof Group\Key) {
+            if (array_key_exists(2, $args)) {
+                $expired = $args[2];
+            }
+        } else {
+            if (array_key_exists(1, $args)) {
+                $expired = $args[1];
+            }
+        }
+
+        if (!$this->engine->isValid($key, $expired)) {
             return null;
         }
 
-        return $this->engine->retrieve($key);
+        return $this->engine->retrieve($key, $expired);
     }
 
     /**
