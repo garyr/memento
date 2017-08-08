@@ -65,14 +65,86 @@ class Client
      */
     public function exists()
     {
-        list($key, $groupKey) = $this->getKeys(func_get_args());
+        $args = func_get_args();
+        list($key, $groupKey) = $this->getKeys($args);
+
+        $expired = false;
+        if ($groupKey instanceof Group\Key) {
+            if (array_key_exists(2, $args)) {
+                $expired = $args[2];
+            }
+        } else {
+            if (array_key_exists(1, $args)) {
+                $expired = $args[1];
+            }
+        }
 
         $this->engine->setGroupKey($groupKey);
+        if (!$this->engine->isValid($key, $expired)) {
+            return false;
+        }
+
+        return $this->engine->exists($key, $expired);
+    }
+
+    /**
+     * Wrapper method for expire() call.
+     *
+     * @see  Memento\Single\Agent::expire()
+     * @see  Memento\Group\Agent::expire()
+     *
+     * @return boolean returns true if the command was successful
+     */
+    public function expire()
+    {
+        list($key, $groupKey) = $this->getKeys(func_get_args());
+        $this->engine->setGroupKey($groupKey);
+
         if (!$this->engine->isValid($key)) {
             return false;
         }
 
-        return $this->engine->exists($key);
+        return $this->engine->expire($key);
+    }
+
+    /**
+     * Wrapper method for getExpires() call.
+     *
+     * @see  Memento\Single\Agent::getExpires()
+     * @see  Memento\Group\Agent::getExpires()
+     *
+     * @return mixed    returns the time the object expires
+     */
+    public function getExpires()
+    {
+        list($key, $groupKey) = $this->getKeys(func_get_args());
+        $this->engine->setGroupKey($groupKey);
+
+        if (!$this->engine->isValid($key, true)) {
+            return null;
+        }
+
+        return $this->engine->getExpires($key);
+    }
+
+    /**
+     * Wrapper method for getTtl() call.
+     *
+     * @see  Memento\Single\Agent::getTtl()
+     * @see  Memento\Group\Agent::getTtl()
+     *
+     * @return mixed    returns the time the object is okay for termination (delete)
+     */
+    public function getTtl()
+    {
+        list($key, $groupKey) = $this->getKeys(func_get_args());
+        $this->engine->setGroupKey($groupKey);
+
+        if (!$this->engine->isValid($key, true)) {
+            return null;
+        }
+
+        return $this->engine->getTtl($key);
     }
 
     /**
@@ -86,10 +158,11 @@ class Client
     public function invalidate()
     {
         list($key, $groupKey) = $this->getKeys(func_get_args());
+
         $this->engine->setGroupKey($groupKey);
 
         if (!$this->engine->isValid($key)) {
-            return false;
+            return true;
         }
 
         return $this->engine->invalidate($key);
@@ -158,15 +231,44 @@ class Client
 
         $this->engine->setGroupKey($groupKey);
 
-        if (4 == count($args) || (3 == count($args) && is_null($groupKey))) {
-            $expires = array_pop($args);
-            $value = array_pop($args);
+        $expires = 3600; // default
+        $ttl = null;
+        if ($groupKey instanceof Group\Key) {
+            $value = $args[2];
+
+            if (array_key_exists(3, $args)) {
+                $expires = $args[3];
+            }
+
+            if (array_key_exists(4, $args)) {
+                $ttl = $args[4];
+            }
         } else {
-            $expires = 3600; // default
-            $value = array_pop($args);
+            $value = $args[1];
+
+            if (array_key_exists(2, $args)) {
+                $expires = $args[2];
+            }
+
+            if (array_key_exists(3, $args)) {
+                $ttl = $args[3];
+            }
         }
 
-        return $this->engine->store($key, $value, $expires);
+        return $this->engine->store($key, $value, $expires, $ttl);
+    }
+
+    /**
+     * Wrapper method for terminate() call.
+     *
+     * @see  Memento\Single\Agent::terminate()
+     * @see  Memento\Group\Agent::terminate()
+     *
+     * @return boolean  returns true if the termination action succeeded
+     */
+    public function terminate()
+    {
+        return call_user_func_array(array($this, 'invalidate'), func_get_args());
     }
 
     /*

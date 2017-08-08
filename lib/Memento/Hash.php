@@ -33,4 +33,9 @@ class Hash
      * Used for field name to store valid flag on a hash
      */
     const FIELD_VALID   = 'valid';
+
+    /**
+     * Used for field name to store ttl data on a hash
+     */
+    const FIELD_TTL = 'ttl';
 }

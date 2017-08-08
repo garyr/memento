@@ -11,6 +11,8 @@ use Memento;
 
 abstract class EngineAbstract
 {
+    const DEFAULT_EXPIRES = 300;
+
     /*
     Since we can balance across multiple servers, decide which server a key resides on.
     */

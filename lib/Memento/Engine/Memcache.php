@@ -110,17 +110,46 @@ class Memcache extends EngineAbstract implements EngineInterface
 
     private function getMeta(Memento\Key $key = null)
     {
-        if (!is_null($this->groupKey)) {
-            return $this->memcache->get($this->groupKey->getKey());
-        } elseif (!is_null($key)) {
-            return $this->memcache->get($key->getKey());
-        }
+        return $this->memcache->get($this->getKeyStr($key));
+    }
+
+    private function getKeyStr(Memento\Key $key = null)
+    {
+        // get primary key string
+        return $this->groupKey ? $this->groupKey->getKey() : $key->getKey();
     }
 
     /**
      * Logical implementation of the exists() command
      */
-    public function exists(Memento\Key $key)
+    public function exists(Memento\Key $key, $expired = false)
+    {
+        return $this->isValid($key, $expired);
+    }
+
+    /**
+     * Logical implementation of the expire() command
+     */
+    public function expire(Memento\Key $key = null)
+    {
+        if (!$this->__connect($key)) {
+            return false;
+        }
+
+        if (!$meta = $this->getMeta($key)) {
+            $this->__disconnect();
+
+            return false;
+        }
+
+        $expired = $this->memcache->set($meta[Memento\Hash::FIELD_EXPIRES], "0");
+
+        $this->__disconnect();
+
+        return $expired;
+    }
+
+    public function getExpires(Memento\Key $key = null)
     {
         if (!$this->__connect($key)) {
             return false;
@@ -130,24 +159,36 @@ class Memcache extends EngineAbstract implements EngineInterface
             return false;
         }
 
-        $exists = false;
-
-        if (!is_null($this->groupKey)) {
-            $keys = $this->memcache->get($meta[Memento\Hash::FIELD_KEYS]);
-            $search = $key->getKey();
-            if (!is_array($keys) || !array_key_exists($search, $keys)) {
-                $this->__disconnect();
-
-                return $exists;
-            }
-            $exists = (!is_null($this->memcache->get($keys[$search]))) ? true : false;
-        } else {
-            $exists = (!is_null($meta[Memento\Hash::FIELD_DATA])) ? true : false;
+        if (!is_array($meta) || !array_key_exists(Memento\Hash::FIELD_EXPIRES, $meta)) {
+            return false;
         }
+
+        $expires = intval($this->memcache->get($meta[Memento\Hash::FIELD_EXPIRES])) - time();
 
         $this->__disconnect();
 
-        return $exists;
+        return $expires;
+    }
+
+    public function getTtl(Memento\Key $key = null)
+    {
+        if (!$this->__connect($key)) {
+            return false;
+        }
+
+        if (!$meta = $this->getMeta($key)) {
+            return false;
+        }
+
+        if (!is_array($meta) || !array_key_exists(Memento\Hash::FIELD_TTL, $meta)) {
+            return false;
+        }
+
+        $ttl = intval($this->memcache->get($meta[Memento\Hash::FIELD_TTL])) - time();
+
+        $this->__disconnect();
+
+        return $ttl;
     }
 
     /**
@@ -171,7 +212,7 @@ class Memcache extends EngineAbstract implements EngineInterface
             return false;
         }
 
-        if (!is_null($this->groupKey) && !is_null($key)) {
+        if ($this->groupKey && $key instanceof Memento\Key) {
             // update the keys map
             $keys = $this->memcache->get($meta[Memento\Hash::FIELD_KEYS]);
 
@@ -184,8 +225,6 @@ class Memcache extends EngineAbstract implements EngineInterface
             // key which will contain the data
             $singleKey = $meta[Memento\Hash::FIELD_KEYS] . '_' . $key->getKey();
 
-            $data = $this->memcache->get($singleKey);
-
             unset($keys[$key->getKey()]);
 
             $remaining = ($meta[Memento\Hash::FIELD_CREATED] + $meta[Memento\Hash::FIELD_EXPIRES]) - time();
@@ -196,13 +235,13 @@ class Memcache extends EngineAbstract implements EngineInterface
             $isDelete = $this->memcache->delete($singleKey);
             $this->__disconnect();
 
-            return ($isKeyUpdate && $isDelete);
+            $invalidated = ($isKeyUpdate && $isDelete);
         } else {
-            $invalidated = $this->memcache->set($meta[Memento\Hash::FIELD_VALID], false);
+            $invalidated = $this->memcache->set($meta[Memento\Hash::FIELD_VALID], "0");
             $this->__disconnect();
-
-            return $invalidated;
         }
+
+        return $invalidated;
     }
 
     /**
@@ -234,7 +273,7 @@ class Memcache extends EngineAbstract implements EngineInterface
     /**
      * Logical implementation of the retrieve() command
      */
-    public function retrieve(Memento\Key $key)
+    public function retrieve(Memento\Key $key, $expired = false)
     {
         if (!$this->__connect($key)) {
             $this->__disconnect();
@@ -270,24 +309,35 @@ class Memcache extends EngineAbstract implements EngineInterface
     /**
      * Logical implementation of the store() command
      */
-    public function store(Memento\Key $key, $value, $expires)
+    public function store(Memento\Key $key, $value, $expires = null, $ttl = null)
     {
         // memcache can't store expires longer than 30 days
         if ($expires > self::MAX_EXPIRES) {
             return false;
         }
 
-        // get primary key string
-        $keyStr = $this->groupKey ? $this->groupKey->getKey() : $key->getKey();
-
         if (!$this->__connect($key)) {
             return false;
         }
 
+        // if no expires specified use default of 5 minutes
+        if (!is_numeric($expires)) {
+            $expires = self::DEFAULT_EXPIRES;
+        }
+
+        // ttl is when the cache is actually okay for deletion
+        if (!is_numeric($ttl)) {
+            $ttl = $expires;
+        }
+
+        $keyStr = $this->getKeyStr($key);
+
         // primary key stores a basic map, potentially to other keys
+        $now = time();
         $meta = array(
-            Memento\Hash::FIELD_CREATED => time(),
-            Memento\Hash::FIELD_EXPIRES => $expires,
+            Memento\Hash::FIELD_CREATED => $now,
+            Memento\Hash::FIELD_EXPIRES => $keyStr . '::' . $keyStr . Memento\Hash::FIELD_EXPIRES,
+            Memento\Hash::FIELD_TTL     => $keyStr . '::' . $keyStr . Memento\Hash::FIELD_TTL,
             Memento\Hash::FIELD_VALID   => $keyStr . '::' . $keyStr . Memento\Hash::FIELD_VALID,
         );
 
@@ -298,9 +348,6 @@ class Memcache extends EngineAbstract implements EngineInterface
 
             // key which will contain the data
             $singleKey = $meta[Memento\Hash::FIELD_KEYS] . '_' . $key->getKey();
-
-            // initial key map
-            $keys = array($key->getKey() => $singleKey);
 
             // valid state
             $valid = true;
@@ -314,10 +361,10 @@ class Memcache extends EngineAbstract implements EngineInterface
             $keys[$key->getKey()] = $singleKey;
 
             // update the keys map
-            $this->memcache->set($meta[Memento\Hash::FIELD_KEYS], $keys, null, $expires);
+            $this->memcache->set($meta[Memento\Hash::FIELD_KEYS], $keys, null, $ttl);
 
             // save the data with mapped key
-            $this->memcache->set($singleKey, $value, null, $expires);
+            $this->memcache->set($singleKey, $value, null, $ttl);
         } else {
             // store data in meta
             $meta[Memento\Hash::FIELD_DATA] = $keyStr . '::' . $keyStr . Memento\Hash::FIELD_DATA;
@@ -326,17 +373,22 @@ class Memcache extends EngineAbstract implements EngineInterface
             $valid = true;
 
             // store data
-            $this->memcache->set($meta[Memento\Hash::FIELD_DATA], $value, null, $expires);
+            $this->memcache->set($meta[Memento\Hash::FIELD_DATA], $value, null, $ttl); // memcache will remove after TTL
         }
 
         // store meta data
-        $metaStored = $this->memcache->set($keyStr, $meta, null, $expires);
+        $metaStored = $this->memcache->set($keyStr, $meta, null, $ttl);
 
         // store valid state
-        $validStored = $this->memcache->set($meta[Memento\Hash::FIELD_VALID], $valid, null, $expires);
+        $isSet = (
+            $this->memcache->set($meta[Memento\Hash::FIELD_VALID], $valid, null, $ttl)
+            && $this->memcache->set($meta[Memento\Hash::FIELD_EXPIRES], strval($expires + $now), null, $ttl)
+            && $this->memcache->set($meta[Memento\Hash::FIELD_TTL], strval($ttl + $now), null, $ttl)
+        );
+
         $this->__disconnect();
 
-        if ($metaStored && $validStored) {
+        if ($metaStored && $isSet) {
             return true;
         }
 
@@ -344,31 +396,57 @@ class Memcache extends EngineAbstract implements EngineInterface
     }
 
     /**
+     * Duplicate of the invalidate command
+     */
+    public function terminate(Memento\Key $key = null)
+    {
+        return $this->invalidate($key);
+    }
+
+    /**
      * Logical implementation of the isValid() command
      */
-    public function isValid(Memento\Key $key = null)
+    public function isValid(Memento\Key $key = null, $expired = false)
     {
         if (!$this->__connect($key)) {
             return false;
         }
 
-        $meta = $this->getMeta($key);
-        if (!is_array($meta) || !array_key_exists(Memento\Hash::FIELD_VALID, $meta)) {
-            $this->__disconnect();
-
+        if (!$meta = $this->getMeta($key)) {
             return false;
         }
-        if (array_key_exists(Memento\Hash::FIELD_VALID, $meta)) {
-            $valid = $this->memcache->get($meta[Memento\Hash::FIELD_VALID]);
-            $valid = ("1" === $valid) ? true : false;
-            if (true === $valid) {
-                $this->__disconnect();
 
-                return true;
+        $keys = [];
+        if (array_key_exists(Memento\Hash::FIELD_KEYS, $meta)) {
+            $keys = $this->memcache->get($meta[Memento\Hash::FIELD_KEYS]);
+        }
+
+        if ($this->groupKey && $key instanceof Memento\Key) {
+            $search = $key->getKey();
+            if (array_key_exists($search, $keys)) {
+                $valid = filter_var($this->memcache->get($meta[Memento\Hash::FIELD_VALID]), FILTER_VALIDATE_BOOLEAN);
+            } else {
+                $valid = false;
+            }
+        } else {
+            if (array_key_exists(Memento\Hash::FIELD_VALID, $meta)) {
+                $valid = filter_var($this->memcache->get($meta[Memento\Hash::FIELD_VALID]), FILTER_VALIDATE_BOOLEAN);
+            } else {
+                $valid = false;
             }
         }
+
+        if ($expired === true && $valid) {
+            $isValid = true;
+        } else if ($valid) {
+            $now = time();
+            $isValid = ($this->getExpires($key) + $now) > $now;
+        } else {
+            $isValid = false;
+        }
+
         $this->__disconnect();
 
-        return false;
+        return $isValid;
     }
 }
