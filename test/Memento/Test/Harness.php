@@ -14,6 +14,11 @@ abstract class Harness extends \PHPUnit_Framework_TestCase
         return 60;
     }
 
+    public function getTtl()
+    {
+        return $this->getExpires() + 5;
+    }
+
     public function getGroupKey()
     {
         if (!$this->groupKey) {
