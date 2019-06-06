@@ -32,7 +32,7 @@ class Memcache extends EngineAbstract implements EngineInterface
      */
     public function __construct($config = null)
     {
-        if (!class_exists('Memcache')) {
+        if (!class_exists('Memcache') && !class_exists('Memcached')) {
             throw new \Exception("Missing Memcache PHP extension, please check config");
         }
 
@@ -89,9 +89,16 @@ class Memcache extends EngineAbstract implements EngineInterface
         }
 
         // instantiate to the memcache connection
-        $this->memcache = new \Memcache();
+        if (class_exists('Memcache')) {
+            $this->memcache = new \Memcache();
+        } else if (class_exists('Memcached')) {
+            $this->memcache = new \Memcached();
+            $this->memcache->setOption(\Memcached::OPT_LIBKETAMA_COMPATIBLE, 1);
+        } else {
+            throw new \Exception("Missing Memcache PHP extension, please check config");
+        }
 
-        return $this->memcache->connect($host, $port);
+        return $this->memcache->addServer($host, $port);
     }
 
     /**
@@ -102,7 +109,12 @@ class Memcache extends EngineAbstract implements EngineInterface
         if (is_null($this->memcache)) {
             return;
         }
-        $this->memcache->close();
+
+        if (class_exists('Memcache')) {
+            $this->memcache->close();
+        } else {
+            $this->memcache->quit();
+        }
         $this->memcache = null;
 
         return true;
@@ -229,7 +241,7 @@ class Memcache extends EngineAbstract implements EngineInterface
 
             $remaining = ($meta[Memento\Hash::FIELD_CREATED] + $meta[Memento\Hash::FIELD_EXPIRES]) - time();
             $remaining = max($remaining, 0);
-            $isKeyUpdate = $this->memcache->set($meta[Memento\Hash::FIELD_KEYS], $keys, null, $remaining);
+            $isKeyUpdate = $this->setItem($meta[Memento\Hash::FIELD_KEYS], $keys, $remaining);
 
             // save the data with mapped key
             $isDelete = $this->memcache->delete($singleKey);
@@ -361,10 +373,10 @@ class Memcache extends EngineAbstract implements EngineInterface
             $keys[$key->getKey()] = $singleKey;
 
             // update the keys map
-            $this->memcache->set($meta[Memento\Hash::FIELD_KEYS], $keys, null, $ttl);
+            $this->setItem($meta[Memento\Hash::FIELD_KEYS], $keys, $ttl);
 
             // save the data with mapped key
-            $this->memcache->set($singleKey, $value, null, $ttl);
+            $this->setItem($singleKey, $value, $ttl);
         } else {
             // store data in meta
             $meta[Memento\Hash::FIELD_DATA] = $keyStr . '::' . $keyStr . Memento\Hash::FIELD_DATA;
@@ -373,17 +385,17 @@ class Memcache extends EngineAbstract implements EngineInterface
             $valid = true;
 
             // store data
-            $this->memcache->set($meta[Memento\Hash::FIELD_DATA], $value, null, $ttl); // memcache will remove after TTL
+            $this->setItem($meta[Memento\Hash::FIELD_DATA], $value, $ttl); // memcache will remove after TTL
         }
 
         // store meta data
-        $metaStored = $this->memcache->set($keyStr, $meta, null, $ttl);
+        $metaStored = $this->setItem($keyStr, $meta, $ttl);
 
         // store valid state
         $isSet = (
-            $this->memcache->set($meta[Memento\Hash::FIELD_VALID], $valid, null, $ttl)
-            && $this->memcache->set($meta[Memento\Hash::FIELD_EXPIRES], strval($expires + $now), null, $ttl)
-            && $this->memcache->set($meta[Memento\Hash::FIELD_TTL], strval($ttl + $now), null, $ttl)
+            $this->setItem($meta[Memento\Hash::FIELD_VALID], $valid, $ttl)
+            && $this->setItem($meta[Memento\Hash::FIELD_EXPIRES], strval($expires + $now), $ttl)
+            && $this->setItem($meta[Memento\Hash::FIELD_TTL], strval($ttl + $now), $ttl)
         );
 
         $this->__disconnect();
@@ -448,5 +460,17 @@ class Memcache extends EngineAbstract implements EngineInterface
         $this->__disconnect();
 
         return $isValid;
+    }
+
+     /**
+     * Set Memcache or Memcached item (key map or meta data)
+     */
+    public function setItem($key, $value, $ttl)
+    {
+        if (class_exists('Memcache')) {
+            return $this->memcache->set($key, $value, null, $ttl);
+        } else {
+            return $this->memcache->set($key, $value, $ttl);
+        }
     }
 }
