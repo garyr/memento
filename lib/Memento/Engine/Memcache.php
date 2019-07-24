@@ -28,6 +28,11 @@ class Memcache extends EngineAbstract implements EngineInterface
     private $groupKey = null;
 
     /**
+     * key prefix for Memcached
+     */
+    private $mcd_key_prefix = 'mcd_';
+
+    /**
      * Constructor
      */
     public function __construct($config = null)
@@ -122,7 +127,7 @@ class Memcache extends EngineAbstract implements EngineInterface
 
     private function getMeta(Memento\Key $key = null)
     {
-        return $this->memcache->get($this->getKeyStr($key));
+        return $this->get($this->getKeyStr($key));
     }
 
     private function getKeyStr(Memento\Key $key = null)
@@ -154,7 +159,7 @@ class Memcache extends EngineAbstract implements EngineInterface
             return false;
         }
 
-        $expired = $this->memcache->set($meta[Memento\Hash::FIELD_EXPIRES], "0");
+        $expired = $this->set($meta[Memento\Hash::FIELD_EXPIRES], "0");
 
         $this->__disconnect();
 
@@ -175,7 +180,7 @@ class Memcache extends EngineAbstract implements EngineInterface
             return false;
         }
 
-        $expires = intval($this->memcache->get($meta[Memento\Hash::FIELD_EXPIRES])) - time();
+        $expires = intval($this->get($meta[Memento\Hash::FIELD_EXPIRES])) - time();
 
         $this->__disconnect();
 
@@ -196,7 +201,7 @@ class Memcache extends EngineAbstract implements EngineInterface
             return false;
         }
 
-        $ttl = intval($this->memcache->get($meta[Memento\Hash::FIELD_TTL])) - time();
+        $ttl = intval($this->get($meta[Memento\Hash::FIELD_TTL])) - time();
 
         $this->__disconnect();
 
@@ -226,7 +231,7 @@ class Memcache extends EngineAbstract implements EngineInterface
 
         if ($this->groupKey && $key instanceof Memento\Key) {
             // update the keys map
-            $keys = $this->memcache->get($meta[Memento\Hash::FIELD_KEYS]);
+            $keys = $this->get($meta[Memento\Hash::FIELD_KEYS]);
 
             if (!is_array($keys) || !array_key_exists($key->getKey(), $keys)) {
                 $this->__disconnect();
@@ -241,7 +246,7 @@ class Memcache extends EngineAbstract implements EngineInterface
 
             $remaining = ($meta[Memento\Hash::FIELD_CREATED] + $meta[Memento\Hash::FIELD_EXPIRES]) - time();
             $remaining = max($remaining, 0);
-            $isKeyUpdate = $this->setItem($meta[Memento\Hash::FIELD_KEYS], $keys, $remaining);
+            $isKeyUpdate = $this->set($meta[Memento\Hash::FIELD_KEYS], $keys, $remaining);
 
             // save the data with mapped key
             $isDelete = $this->memcache->delete($singleKey);
@@ -249,7 +254,7 @@ class Memcache extends EngineAbstract implements EngineInterface
 
             $invalidated = ($isKeyUpdate && $isDelete);
         } else {
-            $invalidated = $this->memcache->set($meta[Memento\Hash::FIELD_VALID], "0");
+            $invalidated = $this->set($meta[Memento\Hash::FIELD_VALID], "0");
             $this->__disconnect();
         }
 
@@ -272,7 +277,7 @@ class Memcache extends EngineAbstract implements EngineInterface
             return array();
         }
 
-        $keys = $this->memcache->get($meta[Memento\Hash::FIELD_KEYS]);
+        $keys = $this->get($meta[Memento\Hash::FIELD_KEYS]);
         $this->__disconnect();
 
         if (!is_array($keys)) {
@@ -297,20 +302,20 @@ class Memcache extends EngineAbstract implements EngineInterface
 
         // handle arguments based on group or single key
         if ($this->groupKey) {
-            $keys = $this->memcache->get($meta[Memento\Hash::FIELD_KEYS]);
+            $keys = $this->get($meta[Memento\Hash::FIELD_KEYS]);
             if (!is_array($keys) || !array_key_exists($key->getKey(), $keys)) {
                 $this->__disconnect();
 
                 return NULL;
             }
-            $data = $this->memcache->get($keys[$key->getKey()]);
+            $data = $this->get($keys[$key->getKey()]);
         } else {
             if (!array_key_exists(Memento\Hash::FIELD_DATA, $meta)) {
                 $this->__disconnect();
 
                 return NULL;
             }
-            $data = $this->memcache->get($meta[Memento\Hash::FIELD_DATA]);
+            $data = $this->get($meta[Memento\Hash::FIELD_DATA]);
         }
 
         $this->__disconnect();
@@ -365,7 +370,7 @@ class Memcache extends EngineAbstract implements EngineInterface
             $valid = true;
 
             // look for existing key map
-            $keys = $this->memcache->get($meta[Memento\Hash::FIELD_KEYS]);
+            $keys = $this->get($meta[Memento\Hash::FIELD_KEYS]);
             if (!is_array($keys)) {
                 $keys = array();
             }
@@ -373,10 +378,10 @@ class Memcache extends EngineAbstract implements EngineInterface
             $keys[$key->getKey()] = $singleKey;
 
             // update the keys map
-            $this->setItem($meta[Memento\Hash::FIELD_KEYS], $keys, $ttl);
+            $this->set($meta[Memento\Hash::FIELD_KEYS], $keys, $ttl);
 
             // save the data with mapped key
-            $this->setItem($singleKey, $value, $ttl);
+            $this->set($singleKey, $value, $ttl);
         } else {
             // store data in meta
             $meta[Memento\Hash::FIELD_DATA] = $keyStr . '::' . $keyStr . Memento\Hash::FIELD_DATA;
@@ -385,17 +390,17 @@ class Memcache extends EngineAbstract implements EngineInterface
             $valid = true;
 
             // store data
-            $this->setItem($meta[Memento\Hash::FIELD_DATA], $value, $ttl); // memcache will remove after TTL
+            $this->set($meta[Memento\Hash::FIELD_DATA], $value, $ttl); // memcache will remove after TTL
         }
 
         // store meta data
-        $metaStored = $this->setItem($keyStr, $meta, $ttl);
+        $metaStored = $this->set($keyStr, $meta, $ttl);
 
         // store valid state
         $isSet = (
-            $this->setItem($meta[Memento\Hash::FIELD_VALID], $valid, $ttl)
-            && $this->setItem($meta[Memento\Hash::FIELD_EXPIRES], strval($expires + $now), $ttl)
-            && $this->setItem($meta[Memento\Hash::FIELD_TTL], strval($ttl + $now), $ttl)
+            $this->set($meta[Memento\Hash::FIELD_VALID], $valid, $ttl)
+            && $this->set($meta[Memento\Hash::FIELD_EXPIRES], strval($expires + $now), $ttl)
+            && $this->set($meta[Memento\Hash::FIELD_TTL], strval($ttl + $now), $ttl)
         );
 
         $this->__disconnect();
@@ -430,19 +435,19 @@ class Memcache extends EngineAbstract implements EngineInterface
 
         $keys = [];
         if (array_key_exists(Memento\Hash::FIELD_KEYS, $meta)) {
-            $keys = $this->memcache->get($meta[Memento\Hash::FIELD_KEYS]);
+            $keys = $this->get($meta[Memento\Hash::FIELD_KEYS]);
         }
 
         if ($this->groupKey && $key instanceof Memento\Key) {
             $search = $key->getKey();
             if (array_key_exists($search, $keys)) {
-                $valid = filter_var($this->memcache->get($meta[Memento\Hash::FIELD_VALID]), FILTER_VALIDATE_BOOLEAN);
+                $valid = filter_var($this->get($meta[Memento\Hash::FIELD_VALID]), FILTER_VALIDATE_BOOLEAN);
             } else {
                 $valid = false;
             }
         } else {
             if (array_key_exists(Memento\Hash::FIELD_VALID, $meta)) {
-                $valid = filter_var($this->memcache->get($meta[Memento\Hash::FIELD_VALID]), FILTER_VALIDATE_BOOLEAN);
+                $valid = filter_var($this->get($meta[Memento\Hash::FIELD_VALID]), FILTER_VALIDATE_BOOLEAN);
             } else {
                 $valid = false;
             }
@@ -465,12 +470,27 @@ class Memcache extends EngineAbstract implements EngineInterface
      /**
      * Set Memcache or Memcached item (key map or meta data)
      */
-    public function setItem($key, $value, $ttl)
+    public function set($key, $value, $ttl = null)
     {
         if (class_exists('Memcache')) {
             return $this->memcache->set($key, $value, null, $ttl);
         } else {
-            return $this->memcache->set($key, $value, $ttl);
+            return $this->memcache->set($this->mcd_key_prefix . $key, $value, $ttl);
+        }
+    }
+
+    /**
+     * Get value from Memcache or Memcached
+     */
+    public function get($key) {
+        if (!is_object($this->memcache)) {
+            $this->_connect($key);
+        }
+        if (is_object($this->memcache)) {
+            if (class_exists('Memcache')) {
+                return $this->get($key);
+            }
+            return $this->memcache->get($this->mcd_key_prefix . $key);
         }
     }
 }
