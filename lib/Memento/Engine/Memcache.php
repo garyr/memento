@@ -488,7 +488,7 @@ class Memcache extends EngineAbstract implements EngineInterface
         }
         if (is_object($this->memcache)) {
             if (class_exists('Memcache')) {
-                return $this->get($key);
+                return $this->memcache->get($key);
             }
             return $this->memcache->get($this->mcd_key_prefix . $key);
         }
